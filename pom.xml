@@ -591,10 +591,22 @@
             <scope>test</scope>
         </dependency>
 
+<!--        <dependency>-->
+<!--            <groupId>com.github.texttechnologylab</groupId>-->
+<!--            <artifactId>UIMATypeSystem</artifactId>-->
+<!--            <version>${typesystem.version}</version>-->
+<!--        </dependency>-->
+
+<!--        <dependency>-->
+<!--            <groupId>org.texttechnologylab.annotation</groupId>-->
+<!--            <artifactId>typesystem</artifactId>-->
+<!--            <version>3.0.10</version>-->
+<!--        </dependency>-->
+
         <dependency>
-            <groupId>com.github.texttechnologylab</groupId>
+            <groupId>com.github.mevbagci</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>${typesystem.version}</version>
+            <version>3.0.11</version>
         </dependency>
 
 
