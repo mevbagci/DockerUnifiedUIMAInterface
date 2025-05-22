@@ -604,9 +604,9 @@
 <!--        </dependency>-->
 
         <dependency>
-            <groupId>org.texttechnologylab.annotation</groupId>
-            <artifactId>typesystem</artifactId>
-            <version>3.0.10</version>
+            <groupId>com.github.mevbagci</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>8cfd8c870</version>
         </dependency>
 
 
