@@ -606,7 +606,7 @@
         <dependency>
             <groupId>com.github.mevbagci</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>8cfd8c870</version>
+            <version>3.0.12</version>
         </dependency>
 
 
