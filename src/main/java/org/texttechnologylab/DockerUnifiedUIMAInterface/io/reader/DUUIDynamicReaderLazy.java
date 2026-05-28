@@ -1,51 +1,24 @@
 package org.texttechnologylab.DockerUnifiedUIMAInterface.io.reader;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
 import org.apache.commons.compress.compressors.CompressorException;
-import org.apache.commons.compress.compressors.CompressorStreamFactory;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.uima.UIMAException;
-import org.apache.uima.cas.CASException;
-import org.apache.uima.cas.impl.XmiCasDeserializer;
-import org.apache.uima.fit.factory.JCasFactory;
-import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
-import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.util.InvalidXMLException;
-import org.javaync.io.AsyncFiles;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIReaderComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.*;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.io.AsyncCollectionReader;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.io.ByteReadFuture;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.DUUICollectionReader;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.monitoring.AdvancedProgressMeter;
-import org.texttechnologylab.utilities.helper.ArchiveUtils;
-import org.texttechnologylab.utilities.helper.StringUtils;
-import org.texttechnologylab.utilities.helper.TempFileHandler;
 import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
 
-import java.io.*;
-import java.net.URI;
+import java.io.IOException;
 import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * DUUI Dynamic Lazy file reader..
@@ -59,7 +32,6 @@ public class DUUIDynamicReaderLazy implements DUUICollectionReader {
     protected ConcurrentHashMap<DUUIPipelineComponent, DUUIReaderComposer> _composerMap;
     protected AtomicInteger _numDocs;
     protected AtomicInteger _processedCasCount;
-
 
 
     public DUUIDynamicReaderLazy(String zip_path, List<DUUIPipelineComponent> readerComponents) throws InterruptedException, CompressorException, IOException, URISyntaxException, UIMAException, SAXException {
@@ -88,9 +60,9 @@ public class DUUIDynamicReaderLazy implements DUUICollectionReader {
     class ComponentInitWithLatch implements Runnable {
         private final AtomicInteger _counter;
         private final CountDownLatch _latch;
-        private DUUIPipelineComponent _component;
+        private final DUUIPipelineComponent _component;
         private final Path _filePath;
-        private ConcurrentHashMap<DUUIPipelineComponent, DUUIReaderComposer> _compMap;
+        private final ConcurrentHashMap<DUUIPipelineComponent, DUUIReaderComposer> _compMap;
 
         public ComponentInitWithLatch(DUUIPipelineComponent component,
                                       AtomicInteger counter,
@@ -139,7 +111,7 @@ public class DUUIDynamicReaderLazy implements DUUICollectionReader {
 
             // Hinzufügen der einzelnen Driver zum Composer
             composer.addDriver(docker_driver, uima_driver
-                    ,swarm_driver, remote_driver);
+                    , swarm_driver, remote_driver);
             try {
                 composer.add(this._component);
             } catch (InvalidXMLException | SAXException | CompressorException | IOException e) {
@@ -188,7 +160,8 @@ public class DUUIDynamicReaderLazy implements DUUICollectionReader {
     public void loadCas(JCas targetCas) throws Exception {
         for (Map.Entry<DUUIPipelineComponent, AtomicInteger> entry : this._countMap.entrySet()) {
             if (entry.getValue().get() > 0) {
-                this._composerMap.get(entry.getKey()).run(targetCas);
+                DUUIReaderComposer drC = this._composerMap.get(entry.getKey());
+                drC.run(targetCas);
                 this._numDocs.decrementAndGet();
                 entry.getValue().decrementAndGet();
                 return;
@@ -207,7 +180,7 @@ public class DUUIDynamicReaderLazy implements DUUICollectionReader {
             loadCas(pCas);
             this._processedCasCount.incrementAndGet();
         } catch (Exception e) {
-            // System.out.println(e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException(e);
         }
     }

@@ -1,13 +1,13 @@
 package org.texttechnologylab.DockerUnifiedUIMAInterface.driver;
 
 import org.apache.commons.compress.compressors.CompressorException;
-import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
 import org.apache.uima.cas.CASException;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.resource.metadata.TypeSystemDescription;
 import org.apache.uima.util.InvalidXMLException;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.exception.CommunicationLayerException;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.exception.PipelineComponentException;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.pipeline_storage.DUUIPipelineDocumentPerformance;
@@ -25,23 +25,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public interface IDUUIDriverInterface {
     /**
      * Method for defining the Lua context to be used, which determines the transfer type between Composer and components.
-     * @see DUUILuaContext
+     *
      * @param luaContext
+     * @see DUUILuaContext
      */
-    public void setLuaContext(DUUILuaContext luaContext);
+    void setLuaContext(DUUILuaContext luaContext);
 
     /**
      * Method for checking whether the selected component can be used via the driver.
+     *
      * @param component
      * @return
      * @throws InvalidXMLException
      * @throws IOException
      * @throws SAXException
      */
-    public boolean canAccept(DUUIPipelineComponent component) throws InvalidXMLException, IOException, SAXException;
+    boolean canAccept(DUUIPipelineComponent component) throws InvalidXMLException, IOException, SAXException;
 
     /**
      * Initialisation method
+     *
      * @param component
      * @param jc
      * @param skipVerification
@@ -49,20 +52,21 @@ public interface IDUUIDriverInterface {
      * @return
      * @throws Exception
      */
-    public String instantiate(DUUIPipelineComponent component, JCas jc, boolean skipVerification, AtomicBoolean shutdown) throws Exception;
+    String instantiate(DUUIPipelineComponent component, JCas jc, boolean skipVerification, AtomicBoolean shutdown) throws Exception;
 
     /**
      * Visualisation of the concurrency
+     *
      * @param uuid
      */
-    public void printConcurrencyGraph(String uuid);
+    void printConcurrencyGraph(String uuid);
 
     //TODO: public InputOutput get_inputs_and_outputs(String uuid)
     //Example: get_typesystem(...)
 
     /**
      * Returns the TypeSystem used for the respective component.
-     * @see TypeSystemDescription
+     *
      * @param uuid
      * @return
      * @throws InterruptedException
@@ -70,20 +74,23 @@ public interface IDUUIDriverInterface {
      * @throws SAXException
      * @throws CompressorException
      * @throws ResourceInitializationException
+     * @see TypeSystemDescription
      */
-    public TypeSystemDescription get_typesystem(String uuid) throws InterruptedException, IOException, SAXException, CompressorException, ResourceInitializationException;
+    TypeSystemDescription get_typesystem(String uuid) throws InterruptedException, IOException, SAXException, CompressorException, ResourceInitializationException;
 
     /**
      * Initializes a Reader Component
+     *
      * @param uuid
      * @param filePath
      * @return
      * @throws Exception
      */
-    public int initReaderComponent(String uuid, Path filePath) throws Exception;
+    int initReaderComponent(String uuid, Path filePath) throws Exception;
 
     /**
      * Starting a component.
+     *
      * @param uuid
      * @param aCas
      * @param perf
@@ -91,18 +98,40 @@ public interface IDUUIDriverInterface {
      * @throws CASException
      * @throws PipelineComponentException
      */
-    public void run(String uuid, JCas aCas, DUUIPipelineDocumentPerformance perf, DUUIComposer composer) throws CASException, PipelineComponentException;
+    void run(String uuid, JCas aCas, DUUIPipelineDocumentPerformance perf, DUUIComposer composer) throws CASException, PipelineComponentException, CompressorException, IOException, InterruptedException, SAXException, CommunicationLayerException;
 
     /**
      * Destruction of a component
+     *
      * @param uuid
      * @return
      */
-    public boolean destroy(String uuid);
+    boolean destroy(String uuid);
 
     /**
      * Shutting down the driver
      */
-    public void shutdown();
+    void shutdown();
+
+    /**
+     * Called by DUUIComposer after pipeline instantiation and before the pipeline loop.
+     * Tells each driver how many documents will be processed in total.
+     * RayParallelDriver uses this count to detect the last document in stream mode.
+     * Default implementation is a no-op so existing drivers don't need to override it.
+     *
+     * @param uuid UUID of the instantiated component
+     * @param totalDocuments Total number of documents, or -1 if unknown
+     */
+    default void notifyCollectionSize(String uuid, long totalDocuments) {}
+
+    /**
+     * Called by DUUIComposer when a document fails and component and will
+     * never reach this component. Stream-mode use this to adjust their expected
+     * document count so /v1/finalize is still triggered on the last successful document.
+     * Default implementation is a no-op so existing drivers don't need to override it.
+     *
+     * @param uuid UUID of the instantiated component that will be skipped
+     */
+    default void notifyDocumentFailed(String uuid) {}
 
 }

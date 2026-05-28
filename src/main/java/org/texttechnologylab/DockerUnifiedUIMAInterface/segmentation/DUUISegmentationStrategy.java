@@ -28,6 +28,13 @@ public abstract class DUUISegmentationStrategy implements IDUUISegmentationStrat
      */
     protected List<IDUUISegmentationRule> segmentationRules = new ArrayList<>();
 
+    protected  boolean bDebug = false;
+
+    public DUUISegmentationStrategy withDebug() {
+        this.bDebug = true;
+        return this;
+    }
+
     /**
      * @param rule
      * @return
@@ -51,8 +58,7 @@ public abstract class DUUISegmentationStrategy implements IDUUISegmentationStrat
                     DocumentMetaData.get(jCasTarget).setLanguage(jCasSource.getDocumentLanguage());
                 }
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             System.err.println("Error copying DocumentMetaData: " + e.getMessage());
             e.printStackTrace();
         }

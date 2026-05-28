@@ -5,7 +5,6 @@ import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
 import org.apache.commons.compress.compressors.CompressorException;
-import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
 import org.apache.uima.cas.CASException;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.resource.ResourceInitializationException;
@@ -14,6 +13,7 @@ import org.apache.uima.util.InvalidXMLException;
 import org.json.JSONObject;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.IDUUICommunicationLayer;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.exception.CommunicationLayerException;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.exception.ImageException;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.exception.PipelineComponentException;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
@@ -53,13 +53,13 @@ import static org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDocker
 public class DUUIPodmanDriver implements IDUUIDriverInterface {
 
     private PodmanClient _interface = null;
-    private HttpClient _client;
+    private final HttpClient _client;
 
     private Vertx _vertx = null;
     private DUUILuaContext _luaContext = null;
-    private int _container_timeout;
+    private final int _container_timeout;
 
-    private HashMap<String, DUUIDockerDriver.InstantiatedComponent> _active_components;
+    private final HashMap<String, DUUIDockerDriver.InstantiatedComponent> _active_components;
 
 
     public DUUIPodmanDriver() throws IOException, SAXException {
@@ -96,6 +96,7 @@ public class DUUIPodmanDriver implements IDUUIDriverInterface {
                 }
             }
             path = "/run/user/" + uid + "/podman/podman.sock";
+            System.out.println(path);
         }
 
         return path;
@@ -205,7 +206,7 @@ public class DUUIPodmanDriver implements IDUUIDriverInterface {
     public String instantiate(DUUIPipelineComponent component, JCas jc, boolean skipVerification, AtomicBoolean shutdown) throws Exception {
 
         String uuid = UUID.randomUUID().toString();
-        while (_active_components.containsKey(uuid.toString())) {
+        while (_active_components.containsKey(uuid)) {
             uuid = UUID.randomUUID().toString();
         }
 
@@ -303,12 +304,15 @@ public class DUUIPodmanDriver implements IDUUIDriverInterface {
                         }
                         final int iCopy = i;
                         final String uuidCopy = uuid;
-                        IDUUICommunicationLayer layer = responsiveAfterTime(getLocalhost() + ":" + String.valueOf(port), jc, _container_timeout, _client, (msg) -> {
+                        IDUUICommunicationLayer layer = responsiveAfterTime(getLocalhost() + ":" + port, jc, _container_timeout, _client, (msg) -> {
                             System.out.printf("[PodmanDriver][%s][Podman Replication %d/%d] %s\n", uuidCopy, iCopy + 1, comp.getScale(), msg);
                         }, _luaContext, skipVerification);
                         System.out.printf("[PodmanDriver][%s][Podman Replication %d/%d] Container for image %s is online (URL http://127.0.0.1:%d) and seems to understand DUUI V1 format!\n", uuid, i + 1, comp.getScale(), comp.getImageName(), port);
 
-                        comp.addInstance(new DUUIDockerDriver.ComponentInstance(containerId, port, layer));
+                        /// Add one replica of the instantiated component per worker
+                        for (int j = 0; j < comp.getWorkers(); j++) {
+                            comp.addInstance(new DUUIDockerDriver.ComponentInstance(containerId, port, layer.copy()));
+                        }
                     } catch (Exception e) {
 
                         e.printStackTrace();
@@ -347,6 +351,7 @@ public class DUUIPodmanDriver implements IDUUIDriverInterface {
 
     /**
      * init reader component
+     *
      * @param uuid
      * @param filePath
      * @return
@@ -361,7 +366,7 @@ public class DUUIPodmanDriver implements IDUUIDriverInterface {
     }
 
     @Override
-    public void run(String uuid, JCas aCas, DUUIPipelineDocumentPerformance perf, DUUIComposer composer) throws CASException, PipelineComponentException {
+    public void run(String uuid, JCas aCas, DUUIPipelineDocumentPerformance perf, DUUIComposer composer) throws CASException, PipelineComponentException, CompressorException, CommunicationLayerException, IOException {
         long mutexStart = System.nanoTime();
         DUUIDockerDriver.InstantiatedComponent comp = _active_components.get(uuid);
         if (comp == null) {
@@ -396,14 +401,14 @@ public class DUUIPodmanDriver implements IDUUIDriverInterface {
             destroy(s);
         }
         try {
-            Thread.sleep(3000l);
+            Thread.sleep(3000L);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
     }
 
     public static class Component {
-        private DUUIPipelineComponent _component;
+        private final DUUIPipelineComponent _component;
 
         public Component(String target) throws URISyntaxException, IOException {
             _component = new DUUIPipelineComponent();
@@ -439,8 +444,25 @@ public class DUUIPodmanDriver implements IDUUIDriverInterface {
             return this;
         }
 
+        /**
+         * Start the given number of parallel instances (containers).
+         *
+         * @param scale Number of containers to start.
+         * @return {@code this}
+         */
         public DUUIPodmanDriver.Component withScale(int scale) {
             _component.withScale(scale);
+            return this;
+        }
+
+        /**
+         * Set the maximum concurrency-level of each component by instantiating the multiple replicas per container.
+         *
+         * @param workers Number of replicas per container.
+         * @return {@code this}
+         */
+        public DUUIPodmanDriver.Component withWorkers(int workers) {
+            _component.withWorkers(workers);
             return this;
         }
 
